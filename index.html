@@ -112,13 +112,27 @@
             overflow: hidden;
         }
 
-        @media (max-width: 768px) {
-            .main-container {
-                flex-direction: column;
-                height: auto;
-                overflow-y: auto;
+        /* 針對平板 (iPad) 與手機的優化調整 */
+        @media (max-width: 1024px) {
+            body {
+                height: auto; /* 取消固定高度，允許頁面捲動 */
+                min-height: 100vh;
+                overflow-y: auto !important; /* 強制開啟捲軸 */
             }
-            body { overflow-y: auto; }
+            .main-container {
+                flex-direction: column; /* 改為上下排列 */
+                height: auto;
+                overflow: visible;
+                padding-bottom: 20px;
+            }
+            .editor-panel {
+                min-height: 400px; /* 確保在堆疊時有足夠高度 */
+                margin-bottom: 10px;
+            }
+            /* 隱藏右側的捲軸，讓畫面更乾淨 (Optional) */
+            ::-webkit-scrollbar {
+                width: 6px;
+            }
         }
 
         /* Panels */
