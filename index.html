@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 🛡️ 資安加固：Content Security Policy (CSP) -->
+    <!-- 1. default-src 'none': 預設禁止載入任何資源 -->
+    <!-- 2. script/style/font-src: 只允許來自本頁 ('self') 和信任的 jsDelivr CDN -->
+    <!-- 3. connect-src 'none': ✨ 關鍵！禁止任何 fetch/XHR 請求，確保資料絕對無法外傳 -->
+    <!-- 4. img-src: 允許圖片和 Base64圖片 -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none'; 
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
+        style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
+        font-src https://cdn.jsdelivr.net; 
+        img-src 'self' data:; 
+        connect-src 'none';
+        frame-ancestors 'none';
+    ">
+    
+    <title>Code Beautifier (Secure & Offline)</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <style>
+        /* CSS 變數系統：預設為深色模式 (Dark Mode) */
+        :root {
+            /* 基礎背景與文字 */
+            --bg-body: #1e1e1e;
+            --bg-panel: #252526;
+            --border-color: #3e3e42;
+            --text-main: #d4d4d4;
+            --text-muted: #aaaaaa;
+            
+            /* UI 元件 */
+            --header-bg: #2d2d2d;
+            --accent-color: #007acc; /* VS Code Blue */
+            --navbar-bg: #007acc;
+            --navbar-text: #ffffff;
+            
+            /* 編輯器專用配色 */
+            --input-bg: #1e1e1e;
+            --input-text: #9cdcfe; /* Light Blue */
+            --output-text: #ce9178; /* String Orange */
+            --code-font: 'Consolas', 'Monaco', 'Courier New', monospace;
+            
+            /* 下拉選單 */
+            --select-bg: #3c3c3c;
+            --select-color: #ffffff;
+        }
+
+        /* 亮色模式 (Light Mode) 覆寫 */
+        body.light-mode {
+            /* 基礎背景與文字 */
+            --bg-body: #f3f3f3;
+            --bg-panel: #ffffff;
+            --border-color: #d1d5db; /* Gray-300 */
+            --text-main: #333333;
+            --text-muted: #666666;
+            
+            /* UI 元件 */
+            --header-bg: #e9ecef; /* Gray-200 */
+            --accent-color: #0066b8; /* Darker Blue for contrast */
+            --navbar-bg: #0066b8;
+            --navbar-text: #ffffff;
+            
+            /* 編輯器專用配色 (參考 VS Code Light Theme) */
+            --input-bg: #ffffff;
+            --input-text: #0451a5; /* Blue */
+            --output-text: #a31515; /* Red */
+            
+            /* 下拉選單 */
+            --select-bg: #ffffff;
+            --select-color: #333333;
+        }
+
+        /* ------------------------------------------------ */
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Navbar */
+        .navbar {
+            background-color: var(--navbar-bg) !important;
+            color: var(--navbar-text);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            flex-shrink: 0;
+            padding: 0.5rem 1rem;
+            transition: background-color 0.3s;
+        }
+        .navbar-brand { color: var(--navbar-text) !important; }
+
+        /* Main Layout */
+        .main-container {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            height: calc(100vh - 56px);
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                height: auto;
+                overflow-y: auto;
+            }
+            body { overflow-y: auto; }
+        }
+
+        /* Panels */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            min-height: 300px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .panel-header {
+            padding: 8px 12px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* Textareas */
+        .code-area {
+            flex: 1;
+            width: 100%;
+            background-color: var(--input-bg);
+            color: var(--input-text); 
+            border: none;
+            padding: 15px;
+            font-family: var(--code-font);
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .code-area::placeholder { color: var(--text-muted); opacity: 0.6; }
+        .code-area:focus { box-shadow: inset 0 0 0 1px var(--accent-color); }
+        #output-code { color: var(--output-text); }
+
+        /* Status Bar */
+        .status-bar {
+            height: 24px;
+            background-color: var(--accent-color);
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            justify-content: space-between;
+            transition: background-color 0.3s;
+        }
+
+        /* Form Controls */
+        #language-select {
+            background-color: var(--select-bg);
+            color: var(--select-color);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .light-mode #language-select { border: 1px solid #ced4da; }
+        
+        optgroup { background-color: var(--select-bg); color: var(--text-muted); }
+        option { background-color: var(--select-bg); color: var(--select-color); }
+
+        /* Badges & Utilities */
+        .error-badge {
+            background-color: #dc3545; color: white;
+            padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;
+            display: none; animation: fadeIn 0.3s;
+        }
+        .warning-badge {
+            background-color: #ffc107; color: #333;
+            padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;
+            display: none; animation: fadeIn 0.3s; margin-right: 10px; font-weight: bold;
+        }
+        
+        /* Theme Toggle Button */
+        .btn-theme-toggle {
+            color: var(--navbar-text);
+            border: 1px solid rgba(255,255,255,0.3);
+            background: transparent;
+        }
+        .btn-theme-toggle:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-body); }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* Mask Checkbox (Custom Style for Navbar) */
+        .form-check-input {
+            cursor: pointer;
+            border-color: rgba(255,255,255,0.5);
+            background-color: rgba(255,255,255,0.1);
+        }
+        .form-check-input:checked {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        .form-check-label {
+            font-size: 0.85rem;
+            cursor: pointer;
+            user-select: none;
+            color: var(--navbar-text);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-body); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            color: var(--text-main); transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Mask -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div>正在初始化工具箱...</div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid px-2">
+            <!-- Brand -->
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <i class="bi bi-braces fs-4 me-2"></i>
+                <span class="brand-text">Code Beautifier</span>
+                <span class="badge bg-light text-dark ms-2 opacity-75" style="font-size: 0.7rem;">Private</span>
+            </a>
+            
+            <!-- Controls -->
+            <div class="d-flex align-items-center gap-2">
+                <!-- Theme Toggle -->
+                <button class="btn btn-sm btn-theme-toggle rounded-circle p-1" style="width: 32px; height: 32px;" onclick="toggleTheme()" title="切換深色/亮色模式">
+                    <i id="theme-icon" class="bi bi-moon-stars-fill"></i>
+                </button>
+
+                <div class="vr mx-1" style="color: rgba(255,255,255,0.5);"></div>
+
+                <!-- Select -->
+                <select id="language-select" class="form-select form-select-sm shadow-none" style="width: 180px;">
+                    <optgroup label="程式碼格式化">
+                        <option value="json" selected>JSON</option>
+                        <option value="sql">SQL</option>
+                        <option value="xml">XML</option>
+                        <option value="html">HTML</option>
+                        <option value="yaml">YAML</option>
+                        <option value="css">CSS</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="curl">cURL Command</option>
+                    </optgroup>
+                    <optgroup label="資料轉換 (Converters)">
+                        <option value="json-to-schema">JSON to JSON Schema</option>
+                    </optgroup>
+                    <optgroup label="編碼 / 解碼工具">
+                        <option value="url-decode">URL Decode (解碼)</option>
+                        <option value="url-encode">URL Encode (全部編碼)</option>
+                        <option value="url-encode-uri">URL Encode (保留網址)</option>
+                        <option value="base64-decode">Base64 Decode</option>
+                        <option value="base64-encode">Base64 Encode</option>
+                        <option value="base32-decode">Base32 Decode</option>
+                        <option value="base32-encode">Base32 Encode</option>
+                    </optgroup>
+                </select>
+
+                <!-- Mask Secrets Checkbox (Hidden by default) -->
+                <div id="mask-option" class="d-none ms-1 d-flex align-items-center">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="maskSecrets" checked>
+                        <label class="form-check-label" for="maskSecrets">
+                            <i class="bi bi-shield-lock-fill"></i> 隱藏敏感資訊
+                        </label>
+                    </div>
+                    <!-- Info Icon with Tooltip (Fixed: Using Bootstrap Tooltip) -->
+                    <i class="bi bi-info-circle ms-2" 
+                       style="cursor: help; color: rgba(255,255,255,0.7); font-size: 0.9rem;" 
+                       data-bs-toggle="tooltip" 
+                       data-bs-html="true"
+                       data-bs-placement="bottom"
+                       data-bs-title="啟用後將自動隱藏以下 Header：<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (包含 mid 的所有 Key)</em>">
+                    </i>
+                </div>
+                
+                <!-- Run Button -->
+                <button class="btn btn-light btn-sm fw-bold px-3 shadow-sm" onclick="formatCode()">
+                    <i class="bi bi-play-fill"></i> 執行
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Input Panel -->
+        <div class="editor-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="bi bi-pencil-square"></i> 原始碼 (Input)
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm py-0" style="font-size: 0.75rem;" onclick="loadDemo()">
+                        <i class="bi bi-magic"></i> 試試看
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" style="font-size: 0.75rem;" onclick="clearAll()">
+                        <i class="bi bi-trash"></i> 清空
+                    </button>
+                </div>
+            </div>
+            <!-- 資安加固：autocomplete="off" 避免瀏覽器快取敏感輸入 -->
+            <textarea id="input-code" class="code-area" placeholder="在此貼上你的程式碼... (或是按下 '試試看' 按鈕)" spellcheck="false" autocomplete="off"></textarea>
+        </div>
+
+        <!-- Output Panel -->
+        <div class="editor-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="bi bi-code-slash"></i> 格式化結果 (Output)
+                    <span id="error-msg" class="error-badge ms-2">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i> 語法錯誤
+                    </span>
+                </div>
+                <button id="btn-copy" class="btn btn-success btn-sm py-0" style="font-size: 0.75rem;" onclick="copyResult()">
+                    <i class="bi bi-clipboard"></i> 複製結果
+                </button>
+            </div>
+            <textarea id="output-code" class="code-area" placeholder="結果將顯示於此... (可編輯)" spellcheck="false" autocomplete="off"></textarea>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div>
+            <span id="offline-warning" class="warning-badge">
+                <i class="bi bi-wifi-off"></i> 離線模式
+            </span>
+        </div>
+        <div>
+            <span>Ready</span>
+            <span class="mx-2">|</span>
+            <span>UTF-8</span>
+        </div>
+    </div>
+
+    <!-- Libraries (jsDelivr) -->
+    <!-- Added Bootstrap JS Bundle for Tooltips -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/standalone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-babel.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-html.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-postcss.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-yaml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sql-formatter@12.2.0/dist/sql-formatter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xml-formatter@2.6.1/dist/browser/xml-formatter.js"></script>
+
+    <script>
+        // Debounce Function for Performance
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        // Init
+        window.onload = function() {
+            // Load Theme Preference
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                updateThemeIcon(true);
+            }
+
+            // Init Bootstrap Tooltips
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+            const overlay = document.getElementById('loading-overlay');
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                loadDemo(); 
+            }, 500);
+            
+            // Initial check for mask option
+            toggleMaskOption(langSelect.value);
+
+            // Add Event Listeners for Real-time Updates
+            inputEl.addEventListener('input', debounce(formatCode, 300));
+            maskCheckbox.addEventListener('change', formatCode);
+        };
+
+        const inputEl = document.getElementById('input-code');
+        const outputEl = document.getElementById('output-code');
+        const langSelect = document.getElementById('language-select');
+        const errorMsg = document.getElementById('error-msg');
+        const offlineWarning = document.getElementById('offline-warning');
+        const themeIcon = document.getElementById('theme-icon');
+        const maskOption = document.getElementById('mask-option');
+        const maskCheckbox = document.getElementById('maskSecrets');
+
+        // Toggle Theme Logic
+        function toggleTheme() {
+            const isLight = document.body.classList.toggle('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            updateThemeIcon(isLight);
+        }
+
+        function updateThemeIcon(isLight) {
+            if (isLight) {
+                themeIcon.className = 'bi bi-sun-fill';
+            } else {
+                themeIcon.className = 'bi bi-moon-stars-fill';
+            }
+        }
+
+        // Shortcut: Ctrl + Enter
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                formatCode();
+            }
+        });
+
+        // ==========================================
+        // Helper Functions (Base32, XML Fallback, cURL, JSON Schema)
+        // ==========================================
+
+        const Base32 = {
+            alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',
+            encode: function(input) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(input);
+                let output = '';
+                let val = 0;
+                let bits = 0;
+                for (let i = 0; i < data.length; i++) {
+                    val = (val << 8) | data[i];
+                    bits += 8;
+                    while (bits >= 5) {
+                        output += this.alphabet[(val >>> (bits - 5)) & 31];
+                        bits -= 5;
+                    }
+                }
+                if (bits > 0) output += this.alphabet[(val << (5 - bits)) & 31];
+                while (output.length % 8 !== 0) output += '=';
+                return output;
+            },
+            decode: function(input) {
+                input = input.replace(/=+$/, '');
+                let output = new Uint8Array(input.length * 5 / 8 | 0);
+                let val = 0;
+                let bits = 0;
+                let index = 0;
+                for (let i = 0; i < input.length; i++) {
+                    let c = this.alphabet.indexOf(input[i].toUpperCase());
+                    if (c === -1) continue; 
+                    val = (val << 5) | c;
+                    bits += 5;
+                    if (bits >= 8) {
+                        output[index++] = (val >>> (bits - 8)) & 255;
+                        bits -= 8;
+                    }
+                }
+                const decoder = new TextDecoder();
+                return decoder.decode(output.slice(0, index));
+            }
+        };
+
+        function basicXmlFormatter(xml) {
+            var formatted = '';
+            var reg = /(>)(<)(\/*)/g;
+            xml = xml.replace(reg, '$1\r\n$2$3');
+            var pad = 0;
+            var nodes = xml.split('\r\n');
+            for(var n in nodes) {
+                var node = nodes[n];
+                var indent = 0;
+                if (node.match(/.+<\/\w[^>]*>$/)) indent = 0;
+                else if (node.match(/^<\/\w/)) { if (pad != 0) pad -= 1; }
+                else if (node.match(/^<\w[^>]*[^\/]>.*$/)) indent = 1;
+                else indent = 0;
+                var padding = '';
+                for (var i = 0; i < pad; i++) padding += '  ';
+                formatted += padding + node + '\r\n';
+                pad += indent;
+            }
+            return formatted.trim();
+        }
+
+        // Custom Tokenizer for cURL arguments with Masking Support
+        function formatCurlCommand(cmd, maskSecrets) {
+            if (!cmd) return "";
+            // Remove newlines and backslashes
+            cmd = cmd.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
+            
+            // Regex to match args: quotes (double/single) or non-space
+            const regex = /(".*?"|'.*?'|-[^\s]+|--[^\s]+|[^\s]+)/g;
+            const tokens = cmd.match(regex) || [];
+            
+            let formatted = "";
+            const sensitiveKeys = [
+                'Authorization', 
+                'Cookie', 
+                'X-API-Key', 
+                'X-Auth-Token', 
+                'private-token',
+                'x-auth-key',
+                'http-x-lh-user-info'
+            ];
+            
+            tokens.forEach((token, index) => {
+                
+                // Masking Logic
+                if (maskSecrets) {
+                    // Check if token looks like header 'Key: Value'
+                    // Remove outer quotes to check content (e.g., 'Authorization: ...')
+                    let cleanToken = token.replace(/^['"]|['"]$/g, '');
+                    
+                    if (cleanToken.includes(':')) {
+                        const parts = cleanToken.split(':');
+                        const key = parts[0].trim();
+                        
+                        // Check exact list OR matches "mid" (case-insensitive)
+                        // This handles 'a-mid', 'MID', 'X-Merchant-Mid', etc.
+                        let isSensitive = sensitiveKeys.some(k => k.toLowerCase() === key.toLowerCase()) || 
+                                          key.toLowerCase().includes('mid');
+
+                        if (isSensitive) {
+                            // Reconstruct token with masked value, preserving original quotes
+                            const firstChar = token[0];
+                            const quote = (firstChar === '"' || firstChar === "'") ? firstChar : "'";
+                            token = `${quote}${key}: ********${quote}`;
+                        }
+                    }
+                }
+
+                if (index === 0) {
+                    formatted += token; // 'curl'
+                    return;
+                }
+                // If token starts with - or --, force newline
+                if (token.startsWith("-")) {
+                    formatted += " \\\n  " + token;
+                } else {
+                    formatted += " " + token;
+                }
+            });
+            return formatted;
+        }
+
+        // JSON to JSON Schema Generator
+        function jsonToSchema(json) {
+            function getType(value) {
+                if (value === null) return 'null';
+                if (Array.isArray(value)) return 'array';
+                return typeof value;
+            }
+
+            function traverse(data) {
+                const type = getType(data);
+                const schema = { type };
+
+                if (type === 'object') {
+                    schema.properties = {};
+                    for (const key in data) {
+                        schema.properties[key] = traverse(data[key]);
+                    }
+                } else if (type === 'array') {
+                    if (data.length > 0) {
+                        // Infer schema from the first item
+                        schema.items = traverse(data[0]);
+                    } else {
+                        schema.items = {}; // Empty array, unknown items
+                    }
+                }
+                return schema;
+            }
+
+            return {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                ...traverse(json)
+            };
+        }
+
+        // ==========================================
+        // Main Logic (Refactored)
+        // ==========================================
+
+        // Define Demo Data Map
+        const demoData = {
+            'json': '{"squadName":"Super Hero Squad","homeTown":"Metro City","active":true,"members":[{"name":"Molecule Man","age":29,"powers":["Radiation resistance","Turning tiny"]}]}',
+            'sql': "SELECT p.product_name, SUM(o.quantity) as total FROM products p JOIN orders o ON p.id = o.pid WHERE p.active = 1 GROUP BY p.id ORDER BY total DESC;",
+            'xml': '<?xml version="1.0"?><note><to>User</to><from>Admin</from><body>Reminder!</body></note>',
+            'html': '<!DOCTYPE html><html><head><title>Test</title></head><body><div class="main"><h1>Hello</h1></div></body></html>',
+            'css': 'body{background:#000;color:#fff}.card{border:1px solid #ccc;padding:10px}',
+            'yaml': 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: nginx\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.14.2',
+            'javascript': 'const fn=(a,b)=>{if(a>b)return a;else return b;};console.log(fn(5,10));',
+            'curl': `curl 'https://api.example.com/data' -H 'Authority: api.example.com' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy.token' -H 'Cookie: session_id=abc123456' -H 'Content-Type: application/json' -H 'x-auth-key: secret_key_123' -H 'a-mid: merchant_777' -H 'http-x-lh-user-info: user_data_blob' --data-raw '{"id":123,"value":"test"}' --compressed`,
+            'json-to-schema': '{"id": 1, "name": "Test Product", "price": 12.50, "tags": ["home", "green"], "stock": {"warehouse": "A", "quantity": 100}}',
+            'url-decode': 'https://example.com/?q=%E6%B8%AC%E8%A9%A6&key=%E5%80%BC',
+            'url-encode': 'https://example.com/?q=測試&key=值',
+            'url-encode-uri': 'https://example.com/?q=測試&key=值',
+            'base64-encode': '中文測試 123',
+            'base64-decode': '5Lit5paH5ris6KmmIDEyMw==',
+            'base32-encode': 'test base32',
+            'base32-decode': 'ORSXG5BAMJQXEZQ='
+        };
+
+        let lastLoadedDemo = ""; // Track the last demo text loaded
+
+        function toggleMaskOption(lang) {
+            if (lang === 'curl') {
+                maskOption.classList.remove('d-none');
+            } else {
+                maskOption.classList.add('d-none');
+            }
+        }
+
+        function loadDemo() {
+            const lang = langSelect.value;
+            // Get text from map, default to empty
+            let demoText = demoData[lang] || "";
+            
+            inputEl.value = demoText;
+            lastLoadedDemo = demoText; // Update tracking
+            
+            formatCode(); 
+            // Visual feedback
+            const btn = document.querySelector('.btn-outline-primary');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check"></i>';
+            setTimeout(() => btn.innerHTML = originalHTML, 1000);
+        }
+
+        function formatCode() {
+            const source = inputEl.value;
+            const lang = langSelect.value;
+            if (!source.trim()) { outputEl.value = ""; return; }
+
+            errorMsg.style.display = 'none';
+            offlineWarning.style.display = 'none';
+            
+            try {
+                let formatted = "";
+                switch (lang) {
+                    case 'json': formatted = prettier.format(source, { parser: "json", plugins: prettierPlugins, printWidth: 60 }); break;
+                    case 'json-to-schema': 
+                        const jsonObj = JSON.parse(source);
+                        const schemaObj = jsonToSchema(jsonObj);
+                        formatted = prettier.format(JSON.stringify(schemaObj), { parser: "json", plugins: prettierPlugins, printWidth: 60 });
+                        break;
+                    case 'javascript': formatted = prettier.format(source, { parser: "babel", plugins: prettierPlugins, semi: true, singleQuote: true }); break;
+                    case 'html': formatted = prettier.format(source, { parser: "html", plugins: prettierPlugins, printWidth: 100 }); break;
+                    case 'css': formatted = prettier.format(source, { parser: "css", plugins: prettierPlugins }); break;
+                    case 'yaml': formatted = prettier.format(source, { parser: "yaml", plugins: prettierPlugins }); break;
+                    case 'sql': formatted = sqlFormatter.format(source, { language: 'sql', indent: '  ', uppercase: true }); break;
+                    case 'xml':
+                        let formatter = (typeof window.xmlFormatter === 'function') ? window.xmlFormatter : (window.xmlFormatter?.default);
+                        if (formatter) formatted = formatter(source, { indentation: '  ', collapseContent: true, lineSeparator: '\n' });
+                        else { offlineWarning.style.display = 'inline-block'; formatted = basicXmlFormatter(source); }
+                        break;
+                    case 'curl': 
+                        formatted = formatCurlCommand(source, maskCheckbox.checked); 
+                        break;
+                    case 'url-decode':
+                        formatted = decodeURIComponent(source);
+                        if (formatted.includes('&') && formatted.includes('=')) try { formatted = formatted.replace(/&/g, '\n&').replace(/\?/g, '\n?'); } catch (e) {}
+                        break;
+                    case 'url-encode': formatted = encodeURIComponent(source); break;
+                    case 'url-encode-uri': formatted = encodeURI(source); break;
+                    case 'base64-encode': formatted = btoa(unescape(encodeURIComponent(source))); break;
+                    case 'base64-decode': formatted = decodeURIComponent(escape(atob(source.trim()))); break;
+                    case 'base32-encode': formatted = Base32.encode(source); break;
+                    case 'base32-decode': formatted = Base32.decode(source.trim()); break;
+                }
+                outputEl.value = formatted;
+            } catch (err) {
+                console.error(err);
+                errorMsg.style.display = 'inline-block';
+                errorMsg.title = err.message;
+                errorMsg.innerText = (lang.includes('decode')) ? "⚠️ 解碼失敗" : "⚠️ 語法錯誤";
+            }
+        }
+
+        function copyResult() {
+            if (!outputEl.value) return;
+            outputEl.select();
+            document.execCommand('copy');
+            const btn = document.getElementById('btn-copy');
+            const originalHTML = btn.innerHTML;
+            btn.className = 'btn btn-light btn-sm py-0 fw-bold';
+            btn.innerHTML = '<i class="bi bi-check-lg text-success"></i> OK';
+            setTimeout(() => {
+                btn.className = 'btn btn-success btn-sm py-0';
+                btn.innerHTML = originalHTML;
+            }, 1000);
+        }
+
+        function clearAll() {
+            inputEl.value = ''; outputEl.value = '';
+            errorMsg.style.display = 'none'; offlineWarning.style.display = 'none';
+            inputEl.focus();
+        }
+
+        langSelect.addEventListener('change', () => { 
+            toggleMaskOption(langSelect.value);
+            
+            const currentInput = inputEl.value;
+            // Check if input is empty OR equals the last loaded demo (meaning unmodified)
+            if(!currentInput.trim() || currentInput === lastLoadedDemo) {
+                loadDemo(); 
+            } else {
+                formatCode();
+            }
+        });
+
+    </script>
+</body>
+</html>
