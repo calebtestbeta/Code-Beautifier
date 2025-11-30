@@ -5,21 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- 🛡️ 資安加固：Content Security Policy (CSP) -->
-    <!-- 1. default-src 'none': 預設禁止載入任何資源 -->
-    <!-- 2. script/style/font-src: 只允許來自本頁 ('self') 和信任的 jsDelivr CDN -->
-    <!-- 3. connect-src 'none': ✨ 關鍵！禁止任何 fetch/XHR 請求，確保資料絕對無法外傳 -->
-    <!-- 4. img-src: 允許圖片和 Base64圖片 -->
+    <!-- 修正說明：
+         1. 移除 frame-ancestors (meta tag 不支援此屬性)
+         2. connect-src: 開放 cdn.jsdelivr.net 與 cdnjs.cloudflare.com 以允許載入 Source Maps (.map 檔案)，消除控制台錯誤
+    -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'none'; 
-        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
         style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
         font-src https://cdn.jsdelivr.net; 
         img-src 'self' data:; 
-        connect-src 'none';
-        frame-ancestors 'none';
+        connect-src https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
     ">
     
-    <title>Code Beautifier (Secure & Offline)</title>
+    <title>DevBox (Secure & Offline)</title>
     
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -27,58 +26,59 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     
     <style>
-        /* CSS 變數系統：預設為深色模式 (Dark Mode) */
+        /* CSS 變數系統 */
         :root {
-            /* 基礎背景與文字 */
             --bg-body: #1e1e1e;
             --bg-panel: #252526;
             --border-color: #3e3e42;
             --text-main: #d4d4d4;
             --text-muted: #aaaaaa;
-            
-            /* UI 元件 */
             --header-bg: #2d2d2d;
-            --accent-color: #007acc; /* VS Code Blue */
+            --accent-color: #007acc; 
             --navbar-bg: #007acc;
             --navbar-text: #ffffff;
-            
-            /* 編輯器專用配色 */
             --input-bg: #1e1e1e;
-            --input-text: #9cdcfe; /* Light Blue */
-            --output-text: #ce9178; /* String Orange */
+            --input-text: #9cdcfe; 
+            --output-text: #ce9178; 
             --code-font: 'Consolas', 'Monaco', 'Courier New', monospace;
-            
-            /* 下拉選單 */
             --select-bg: #3c3c3c;
             --select-color: #ffffff;
+            
+            /* Tree View */
+            --tree-key: #9cdcfe;
+            --tree-string: #ce9178;
+            --tree-number: #b5cea8;
+            --tree-boolean: #569cd6;
+            --tree-null: #569cd6;
+            --tree-hover: rgba(255, 255, 255, 0.1);
+            --tree-selected: rgba(0, 122, 204, 0.3);
         }
 
-        /* 亮色模式 (Light Mode) 覆寫 */
         body.light-mode {
-            /* 基礎背景與文字 */
             --bg-body: #f3f3f3;
             --bg-panel: #ffffff;
-            --border-color: #d1d5db; /* Gray-300 */
+            --border-color: #d1d5db;
             --text-main: #333333;
             --text-muted: #666666;
-            
-            /* UI 元件 */
-            --header-bg: #e9ecef; /* Gray-200 */
-            --accent-color: #0066b8; /* Darker Blue for contrast */
+            --header-bg: #e9ecef;
+            --accent-color: #0066b8;
             --navbar-bg: #0066b8;
             --navbar-text: #ffffff;
-            
-            /* 編輯器專用配色 (參考 VS Code Light Theme) */
             --input-bg: #ffffff;
-            --input-text: #0451a5; /* Blue */
-            --output-text: #a31515; /* Red */
-            
-            /* 下拉選單 */
+            --input-text: #0451a5; 
+            --output-text: #a31515; 
             --select-bg: #ffffff;
             --select-color: #333333;
+            
+            /* Tree View Light */
+            --tree-key: #0451a5;
+            --tree-string: #a31515;
+            --tree-number: #098658;
+            --tree-boolean: #0000ff;
+            --tree-null: #0000ff;
+            --tree-hover: rgba(0, 0, 0, 0.05);
+            --tree-selected: rgba(0, 102, 184, 0.2);
         }
-
-        /* ------------------------------------------------ */
 
         body {
             background-color: var(--bg-body);
@@ -100,7 +100,7 @@
             padding: 0.5rem 1rem;
             transition: background-color 0.3s;
         }
-        .navbar-brand { color: var(--navbar-text) !important; }
+        .navbar-brand { color: var(--navbar-text) !important; font-weight: bold; }
 
         /* Main Layout */
         .main-container {
@@ -112,27 +112,11 @@
             overflow: hidden;
         }
 
-        /* 針對平板 (iPad) 與手機的優化調整 */
         @media (max-width: 1024px) {
-            body {
-                height: auto; /* 取消固定高度，允許頁面捲動 */
-                min-height: 100vh;
-                overflow-y: auto !important; /* 強制開啟捲軸 */
-            }
-            .main-container {
-                flex-direction: column; /* 改為上下排列 */
-                height: auto;
-                overflow: visible;
-                padding-bottom: 20px;
-            }
-            .editor-panel {
-                min-height: 400px; /* 確保在堆疊時有足夠高度 */
-                margin-bottom: 10px;
-            }
-            /* 隱藏右側的捲軸，讓畫面更乾淨 (Optional) */
-            ::-webkit-scrollbar {
-                width: 6px;
-            }
+            body { height: auto; min-height: 100vh; overflow-y: auto !important; }
+            .main-container { flex-direction: column; height: auto; overflow: visible; padding-bottom: 20px; }
+            .editor-panel { min-height: 400px; margin-bottom: 10px; }
+            ::-webkit-scrollbar { width: 6px; }
         }
 
         /* Panels */
@@ -147,6 +131,7 @@
             min-height: 300px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.05);
             transition: background-color 0.3s, border-color 0.3s;
+            position: relative;
         }
 
         .panel-header {
@@ -159,6 +144,7 @@
             font-size: 0.9rem;
             font-weight: 600;
             color: var(--text-main);
+            flex-shrink: 0;
             transition: background-color 0.3s, border-color 0.3s;
         }
 
@@ -181,6 +167,79 @@
         .code-area:focus { box-shadow: inset 0 0 0 1px var(--accent-color); }
         #output-code { color: var(--output-text); }
 
+        /* JQ/Mongo Tree */
+        #jq-tree-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: var(--input-bg);
+        }
+        #jq-result-bar {
+            padding: 10px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color);
+            font-family: var(--code-font);
+            color: var(--accent-color);
+            font-weight: bold;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #jq-result-badge {
+            background-color: var(--accent-color);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        #jq-result-output {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: inherit;
+            outline: none;
+        }
+        #jq-tree-view {
+            flex: 1;
+            padding: 15px;
+            overflow: auto;
+            font-family: var(--code-font);
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+        .json-tree ul { list-style: none; margin: 0; padding: 0 0 0 20px; }
+        .json-tree > ul { padding-left: 0; }
+        .json-tree li { position: relative; }
+        .json-key { color: var(--tree-key); cursor: pointer; padding: 0 4px; border-radius: 3px; }
+        .json-key:hover { background-color: var(--tree-hover); }
+        .json-key.selected { background-color: var(--tree-selected); outline: 1px solid var(--accent-color); }
+        .json-string { color: var(--tree-string); }
+        .json-number { color: var(--tree-number); }
+        .json-boolean { color: var(--tree-boolean); }
+        .json-null { color: var(--tree-null); }
+        .json-bracket { color: var(--text-muted); }
+
+        /* Controls */
+        #language-select, #lang-switcher {
+            background-color: var(--select-bg);
+            color: var(--select-color);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .light-mode #language-select, .light-mode #lang-switcher { border: 1px solid #ced4da; }
+        optgroup { background-color: var(--select-bg); color: var(--text-muted); }
+        option { background-color: var(--select-bg); color: var(--select-color); }
+
+        .btn-theme-toggle {
+            color: var(--navbar-text);
+            border: 1px solid rgba(255,255,255,0.3);
+            background: transparent;
+        }
+        .btn-theme-toggle:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
         /* Status Bar */
         .status-bar {
             height: 24px;
@@ -192,73 +251,39 @@
             padding: 0 10px;
             justify-content: space-between;
             transition: background-color 0.3s;
-        }
-
-        /* Form Controls */
-        #language-select {
-            background-color: var(--select-bg);
-            color: var(--select-color);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .light-mode #language-select { border: 1px solid #ced4da; }
-        
-        optgroup { background-color: var(--select-bg); color: var(--text-muted); }
-        option { background-color: var(--select-bg); color: var(--select-color); }
-
-        /* Badges & Utilities */
-        .error-badge {
-            background-color: #dc3545; color: white;
-            padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;
-            display: none; animation: fadeIn 0.3s;
+            flex-shrink: 0;
         }
         .warning-badge {
             background-color: #ffc107; color: #333;
             padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;
             display: none; animation: fadeIn 0.3s; margin-right: 10px; font-weight: bold;
         }
-        
-        /* Theme Toggle Button */
-        .btn-theme-toggle {
-            color: var(--navbar-text);
-            border: 1px solid rgba(255,255,255,0.3);
-            background: transparent;
-        }
-        .btn-theme-toggle:hover {
-            background: rgba(255,255,255,0.1);
-            color: #fff;
+        .error-badge {
+            background-color: #dc3545; color: white;
+            padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;
+            display: none; animation: fadeIn 0.3s;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: var(--bg-body); }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 5px; }
-        ::-webkit-scrollbar-thumb:hover { background: #666; }
+        /* Checkbox */
+        .form-check-input { cursor: pointer; border-color: rgba(255,255,255,0.5); background-color: rgba(255,255,255,0.1); }
+        .form-check-input:checked { background-color: #28a745; border-color: #28a745; }
+        .form-check-label { font-size: 0.85rem; cursor: pointer; user-select: none; color: var(--navbar-text); }
 
-        /* Mask Checkbox (Custom Style for Navbar) */
-        .form-check-input {
-            cursor: pointer;
-            border-color: rgba(255,255,255,0.5);
-            background-color: rgba(255,255,255,0.1);
-        }
-        .form-check-input:checked {
-            background-color: #28a745;
-            border-color: #28a745;
-        }
-        .form-check-label {
-            font-size: 0.85rem;
-            cursor: pointer;
-            user-select: none;
-            color: var(--navbar-text);
-        }
-
+        .d-none { display: none !important; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
         .loading-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-body); z-index: 9999;
             display: flex; justify-content: center; align-items: center;
             color: var(--text-main); transition: opacity 0.5s;
         }
+
+        /* Toast Container */
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10000; }
+        .toast { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border-color); }
+        .toast-header { background-color: var(--header-bg); color: var(--text-main); border-bottom: 1px solid var(--border-color); }
+        .btn-close { filter: invert(1); }
+        .light-mode .btn-close { filter: none; }
     </style>
 </head>
 <body>
@@ -267,7 +292,7 @@
     <div id="loading-overlay" class="loading-overlay">
         <div class="text-center">
             <div class="spinner-border text-primary mb-3" role="status"></div>
-            <div>正在初始化工具箱...</div>
+            <div data-i18n="loading">Loading DevBox...</div>
         </div>
     </div>
 
@@ -276,67 +301,56 @@
         <div class="container-fluid px-2">
             <!-- Brand -->
             <a class="navbar-brand d-flex align-items-center" href="#">
-                <i class="bi bi-braces fs-4 me-2"></i>
-                <span class="brand-text">Code Beautifier</span>
-                <span class="badge bg-light text-dark ms-2 opacity-75" style="font-size: 0.7rem;">Private</span>
+                <i class="bi bi-box-seam-fill fs-4 me-2"></i>
+                <span>DevBox</span>
+                <span class="badge bg-light text-dark ms-2 opacity-75" style="font-size: 0.7rem;" data-i18n="badge_private">Private</span>
             </a>
             
             <!-- Controls -->
             <div class="d-flex align-items-center gap-2">
                 <!-- Theme Toggle -->
-                <button class="btn btn-sm btn-theme-toggle rounded-circle p-1" style="width: 32px; height: 32px;" onclick="toggleTheme()" title="切換深色/亮色模式">
+                <button class="btn btn-sm btn-theme-toggle rounded-circle p-1" style="width: 32px; height: 32px;" onclick="UIManager.toggleTheme()">
                     <i id="theme-icon" class="bi bi-moon-stars-fill"></i>
                 </button>
 
+                <!-- Language Switcher -->
+                <div class="dropdown">
+                    <select id="lang-switcher" class="form-select form-select-sm shadow-none" style="width: 100px; cursor: pointer;">
+                        <option value="zh-TW">繁體中文</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                        <option value="ko">한국어</option>
+                    </select>
+                </div>
+
                 <div class="vr mx-1" style="color: rgba(255,255,255,0.5);"></div>
 
-                <!-- Select -->
+                <!-- Tool Select -->
                 <select id="language-select" class="form-select form-select-sm shadow-none" style="width: 180px;">
-                    <optgroup label="程式碼格式化">
-                        <option value="json" selected>JSON</option>
-                        <option value="sql">SQL</option>
-                        <option value="xml">XML</option>
-                        <option value="html">HTML</option>
-                        <option value="yaml">YAML</option>
-                        <option value="css">CSS</option>
-                        <option value="javascript">JavaScript</option>
-                        <option value="curl">cURL Command</option>
-                    </optgroup>
-                    <optgroup label="資料轉換 (Converters)">
-                        <option value="json-to-schema">JSON to JSON Schema</option>
-                    </optgroup>
-                    <optgroup label="編碼 / 解碼工具">
-                        <option value="url-decode">URL Decode (解碼)</option>
-                        <option value="url-encode">URL Encode (全部編碼)</option>
-                        <option value="url-encode-uri">URL Encode (保留網址)</option>
-                        <option value="base64-decode">Base64 Decode</option>
-                        <option value="base64-encode">Base64 Encode</option>
-                        <option value="base32-decode">Base32 Decode</option>
-                        <option value="base32-encode">Base32 Encode</option>
-                    </optgroup>
+                    <!-- Options populated by JS for i18n -->
                 </select>
 
-                <!-- Mask Secrets Checkbox (Hidden by default) -->
+                <!-- Mask Secrets Checkbox -->
                 <div id="mask-option" class="d-none ms-1 d-flex align-items-center">
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" id="maskSecrets" checked>
-                        <label class="form-check-label" for="maskSecrets">
-                            <i class="bi bi-shield-lock-fill"></i> 隱藏敏感資訊
+                        <label class="form-check-label" for="maskSecrets" data-i18n="label_mask">
+                            Mask Secrets
                         </label>
                     </div>
-                    <!-- Info Icon with Tooltip (Fixed: Using Bootstrap Tooltip) -->
                     <i class="bi bi-info-circle ms-2" 
+                       id="mask-tooltip"
                        style="cursor: help; color: rgba(255,255,255,0.7); font-size: 0.9rem;" 
                        data-bs-toggle="tooltip" 
                        data-bs-html="true"
                        data-bs-placement="bottom"
-                       data-bs-title="啟用後將自動隱藏以下 Header：<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (包含 mid 的所有 Key)</em>">
+                       title="">
                     </i>
                 </div>
                 
                 <!-- Run Button -->
-                <button class="btn btn-light btn-sm fw-bold px-3 shadow-sm" onclick="formatCode()">
-                    <i class="bi bi-play-fill"></i> 執行
+                <button class="btn btn-light btn-sm fw-bold px-3 shadow-sm" onclick="App.runFormat()">
+                    <i class="bi bi-play-fill"></i> <span data-i18n="btn_run">Run</span>
                 </button>
             </div>
         </div>
@@ -348,35 +362,49 @@
         <div class="editor-panel">
             <div class="panel-header">
                 <div class="panel-title">
-                    <i class="bi bi-pencil-square"></i> 原始碼 (Input)
+                    <i class="bi bi-pencil-square"></i> <span data-i18n="title_input">Input</span>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary btn-sm py-0" style="font-size: 0.75rem;" onclick="loadDemo()">
-                        <i class="bi bi-magic"></i> 試試看
+                    <button class="btn btn-outline-primary btn-sm py-0" style="font-size: 0.75rem;" onclick="App.loadDemo(true)">
+                        <i class="bi bi-magic"></i> <span data-i18n="btn_demo">Demo</span>
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm py-0" style="font-size: 0.75rem;" onclick="clearAll()">
-                        <i class="bi bi-trash"></i> 清空
+                    <button class="btn btn-outline-secondary btn-sm py-0" style="font-size: 0.75rem;" onclick="App.clearAll()">
+                        <i class="bi bi-trash"></i> <span data-i18n="btn_clear">Clear</span>
                     </button>
                 </div>
             </div>
-            <!-- 資安加固：autocomplete="off" 避免瀏覽器快取敏感輸入 -->
-            <textarea id="input-code" class="code-area" placeholder="在此貼上你的程式碼... (或是按下 '試試看' 按鈕)" spellcheck="false" autocomplete="off"></textarea>
+            <textarea id="input-code" class="code-area" placeholder="" spellcheck="false" autocomplete="off"></textarea>
         </div>
 
         <!-- Output Panel -->
         <div class="editor-panel">
             <div class="panel-header">
                 <div class="panel-title">
-                    <i class="bi bi-code-slash"></i> 格式化結果 (Output)
-                    <span id="error-msg" class="error-badge ms-2">
-                        <i class="bi bi-exclamation-triangle-fill me-1"></i> 語法錯誤
-                    </span>
+                    <i class="bi bi-code-slash"></i> <span data-i18n="title_output">Output</span>
+                    <span id="error-msg" class="error-badge ms-2"></span>
                 </div>
-                <button id="btn-copy" class="btn btn-success btn-sm py-0" style="font-size: 0.75rem;" onclick="copyResult()">
-                    <i class="bi bi-clipboard"></i> 複製結果
-                </button>
+                <!-- Action Buttons: Use Output as Input & Copy -->
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm py-0" style="font-size: 0.75rem;" onclick="App.useOutputAsInput()" title="將結果設為輸入">
+                        <i class="bi bi-arrow-up-circle"></i> <span data-i18n="btn_swap">Use Input</span>
+                    </button>
+                    <button id="btn-copy" class="btn btn-success btn-sm py-0" style="font-size: 0.75rem;" onclick="App.copyResult()">
+                        <i class="bi bi-clipboard"></i> <span data-i18n="btn_copy">Copy</span>
+                    </button>
+                </div>
             </div>
-            <textarea id="output-code" class="code-area" placeholder="結果將顯示於此... (可編輯)" spellcheck="false" autocomplete="off"></textarea>
+            
+            <!-- Standard Output -->
+            <textarea id="output-code" class="code-area" placeholder="" spellcheck="false" autocomplete="off"></textarea>
+            
+            <!-- Tree View (JQ/Mongo) -->
+            <div id="jq-tree-wrapper" class="d-none">
+                <div id="jq-result-bar">
+                    <span id="jq-result-badge" class="badge">Result</span>
+                    <input type="text" id="jq-result-output" value="" readonly>
+                </div>
+                <div id="jq-tree-view" class="json-tree"></div>
+            </div>
         </div>
     </div>
 
@@ -384,390 +412,840 @@
     <div class="status-bar">
         <div>
             <span id="offline-warning" class="warning-badge">
-                <i class="bi bi-wifi-off"></i> 離線模式
+                <i class="bi bi-wifi-off"></i> <span data-i18n="status_offline">Offline Mode</span>
             </span>
         </div>
         <div>
-            <span>Ready</span>
+            <span data-i18n="status_ready">Ready</span>
             <span class="mx-2">|</span>
             <span>UTF-8</span>
         </div>
     </div>
 
-    <!-- Libraries (jsDelivr) -->
-    <!-- Added Bootstrap JS Bundle for Tooltips -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
 
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/standalone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-babel.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-html.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-postcss.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-yaml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prettier@2.8.8/parser-graphql.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sql-formatter@12.2.0/dist/sql-formatter.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xml-formatter@2.6.1/dist/browser/xml-formatter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cronstrue@latest/dist/cronstrue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cron-parser@4.9.0/dist/cron-parser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
 
     <script>
-        // Debounce Function for Performance
-        function debounce(func, wait) {
-            let timeout;
-            return function(...args) {
-                const context = this;
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(context, args), wait);
-            };
-        }
+        /**
+         * DevBox - Refactored Structure
+         */
 
-        // Init
-        window.onload = function() {
-            // Load Theme Preference
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'light') {
-                document.body.classList.add('light-mode');
-                updateThemeIcon(true);
-            }
-
-            // Init Bootstrap Tooltips
-            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-
-            const overlay = document.getElementById('loading-overlay');
-            overlay.style.opacity = '0';
-            setTimeout(() => {
-                overlay.style.display = 'none';
-                loadDemo(); 
-            }, 500);
-            
-            // Initial check for mask option
-            toggleMaskOption(langSelect.value);
-
-            // Add Event Listeners for Real-time Updates
-            inputEl.addEventListener('input', debounce(formatCode, 300));
-            maskCheckbox.addEventListener('change', formatCode);
-        };
-
-        const inputEl = document.getElementById('input-code');
-        const outputEl = document.getElementById('output-code');
-        const langSelect = document.getElementById('language-select');
-        const errorMsg = document.getElementById('error-msg');
-        const offlineWarning = document.getElementById('offline-warning');
-        const themeIcon = document.getElementById('theme-icon');
-        const maskOption = document.getElementById('mask-option');
-        const maskCheckbox = document.getElementById('maskSecrets');
-
-        // Toggle Theme Logic
-        function toggleTheme() {
-            const isLight = document.body.classList.toggle('light-mode');
-            localStorage.setItem('theme', isLight ? 'light' : 'dark');
-            updateThemeIcon(isLight);
-        }
-
-        function updateThemeIcon(isLight) {
-            if (isLight) {
-                themeIcon.className = 'bi bi-sun-fill';
-            } else {
-                themeIcon.className = 'bi bi-moon-stars-fill';
-            }
-        }
-
-        // Shortcut: Ctrl + Enter
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                formatCode();
-            }
-        });
-
-        // ==========================================
-        // Helper Functions (Base32, XML Fallback, cURL, JSON Schema)
-        // ==========================================
-
-        const Base32 = {
-            alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',
-            encode: function(input) {
-                const encoder = new TextEncoder();
-                const data = encoder.encode(input);
-                let output = '';
-                let val = 0;
-                let bits = 0;
-                for (let i = 0; i < data.length; i++) {
-                    val = (val << 8) | data[i];
-                    bits += 8;
-                    while (bits >= 5) {
-                        output += this.alphabet[(val >>> (bits - 5)) & 31];
-                        bits -= 5;
-                    }
-                }
-                if (bits > 0) output += this.alphabet[(val << (5 - bits)) & 31];
-                while (output.length % 8 !== 0) output += '=';
-                return output;
+        const AppConfig = {
+            cronKeywords: {
+                'every minute': '* * * * *', '每分鐘': '* * * * *',
+                'every 5 minutes': '*/5 * * * *', '每5分鐘': '*/5 * * * *',
+                'every hour': '0 * * * *', '每小時': '0 * * * *',
+                'daily': '0 0 * * *', 'every day': '0 0 * * *', '每天': '0 0 * * *',
+                'weekly': '0 0 * * 0', 'every week': '0 0 * * 0', '每週': '0 0 * * 0',
+                'monthly': '0 0 1 * *', 'every month': '0 0 1 * *', '每月': '0 0 1 * *',
+                'yearly': '0 0 1 1 *', 'every year': '0 0 1 1 *', '每年': '0 0 1 1 *'
             },
-            decode: function(input) {
-                input = input.replace(/=+$/, '');
-                let output = new Uint8Array(input.length * 5 / 8 | 0);
-                let val = 0;
-                let bits = 0;
-                let index = 0;
-                for (let i = 0; i < input.length; i++) {
-                    let c = this.alphabet.indexOf(input[i].toUpperCase());
-                    if (c === -1) continue; 
-                    val = (val << 5) | c;
-                    bits += 5;
-                    if (bits >= 8) {
-                        output[index++] = (val >>> (bits - 8)) & 255;
-                        bits -= 8;
-                    }
+            toolOptions: [
+                { group: 'opt_group_format', items: [
+                    {val:'json', k:'t_json'}, {val:'sql', k:'t_sql'}, {val:'xml', k:'t_xml'},
+                    {val:'graphql', k:'t_graphql'}, {val:'mongodb', k:'t_mongo'},
+                    {val:'html', k:'t_html'}, {val:'yaml', k:'t_yaml'}, {val:'css', k:'t_css'},
+                    {val:'javascript', k:'t_js'}, {val:'curl', k:'t_curl'}
+                ]},
+                { group: 'opt_group_convert', items: [
+                    {val:'jq-generator', k:'t_jq'}, {val:'mongodb-path-generator', k:'t_mongo_path'},
+                    {val:'case-converter', k:'t_case'}, {val:'json-yaml', k:'t_json_yaml'},
+                    {val:'json-to-schema', k:'t_schema'}, {val:'timestamp-converter', k:'t_time'},
+                    {val:'cron-parser', k:'t_cron'}, {val:'regex-tester', k:'t_regex'}
+                ]},
+                { group: 'opt_group_encode', items: [
+                    {val:'url-decode', k:'t_url_dec'}, {val:'url-encode', k:'t_url_enc'}, {val:'url-encode-uri', k:'t_url_enc_uri'},
+                    {val:'hash-generator', k:'t_hash'}, {val:'base64-decode', k:'t_b64_dec'}, {val:'base64-encode', k:'t_b64_enc'},
+                    {val:'base32-decode', k:'t_b32_dec'}, {val:'base32-encode', k:'t_b32_enc'}
+                ]}
+            ],
+            demos: {
+                'json': '{"squadName":"Super Hero Squad","active":true,"members":[{"name":"Molecule Man","age":29}]}',
+                'sql': "SELECT * FROM users WHERE active = 1 ORDER BY id DESC;",
+                'xml': '<?xml version="1.0"?><note><to>User</to><body>Msg</body></note>',
+                'graphql': 'query GetUser($id:ID!){user(id:$id){name email}}',
+                'mongodb': 'db.collection.aggregate([{$match:{status:"A"}},{$group:{_id:"$cust_id",total:{$sum:"$amount"}}}])',
+                'html': '<!DOCTYPE html><html><head><title>Test</title></head><body><div class="main"><h1>Hello</h1><p>Text</p></div></body></html>',
+                'css': 'body{color:#fff}',
+                'yaml': 'name:     nginx\nreplicas:    3\nmetadata:\n  name: nginx\n  labels:\n    app:     nginx',
+                'javascript': 'console.log("Hello");',
+                'curl': `curl 'https://api.example.com' -H 'Authorization: Bearer token'`,
+                'json-to-schema': '{"id": 1, "name": "Product"}',
+                'json-yaml': '{"name": "test", "items": [1, 2, 3]}',
+                'case-converter': 'user_id',
+                'jq-generator': '{"data":{"users":[{"id":1,"name":"Alice","roles":["admin"]},{"id":2,"name":"Bob","roles":["user"]}]},"meta":{"total":2}}',
+                'mongodb-path-generator': '{"_id":"6512a","user":{"profile":{"name":"Alice","age":30},"active":true},"tags":["a","b"]}',
+                'timestamp-converter': '1704067200', // Fixed timestamp demo
+                'hash-generator': 'password123',
+                'cron-parser': '*/5 * * * *',
+                'regex-tester': '/\\b\\d{4}-\\d{2}-\\d{2}\\b/g\nToday is 2023-10-27 and tomorrow is 2023-10-28.',
+                'url-decode': 'https://example.com/?q=%E6%B8%AC%E8%A9%A6',
+                'url-encode': 'https://example.com/?q=測試',
+                'url-encode-uri': 'https://example.com/?q=測試',
+                'base64-encode': '中文測試',
+                'base64-decode': '5Lit5paH5ris6Kmm',
+                'base32-encode': 'test',
+                'base32-decode': 'ORSXG5A='
+            },
+            translations: {
+                "zh-TW": {
+                    loading: "正在初始化 DevBox...", badge_private: "內部專用", label_mask: "隱藏敏感資訊",
+                    btn_run: "執行", btn_demo: "範例", btn_clear: "清空", btn_copy: "複製結果", btn_copy_ok: "已複製",
+                    title_input: "輸入", title_output: "結果", status_offline: "離線模式", status_ready: "準備就緒",
+                    placeholder_input: "在此貼上程式碼... (或按下 '範例' 按鈕)", placeholder_output: "結果將顯示於此... (可編輯)",
+                    placeholder_jq: "點擊下方欄位產生路徑... (按住 Ctrl/Cmd 可多選)",
+                    err_format: "⚠️ 格式錯誤", err_syntax: "⚠️ 語法錯誤", err_decode: "⚠️ 解碼失敗",
+                    opt_group_format: "程式碼格式化", opt_group_convert: "資料轉換 (Converters)", opt_group_encode: "編碼 / 解碼工具",
+                    t_json: "JSON 格式化", t_sql: "SQL 格式化", t_xml: "XML 格式化", t_graphql: "GraphQL", t_mongo: "MongoDB Shell",
+                    t_html: "HTML", t_yaml: "YAML", t_css: "CSS", t_js: "JavaScript", t_curl: "cURL 指令整理",
+                    t_jq: "JQ Generator (JSON)", t_mongo_path: "MongoDB Path Generator", t_case: "變數命名轉換 (Case)",
+                    t_json_yaml: "JSON <-> YAML", t_schema: "JSON to JSON Schema", t_time: "Unix 時間戳轉換",
+                    t_cron: "Cron 表達式解析", t_regex: "Regex 測試", t_url_dec: "URL Decode (解碼)", t_url_enc: "URL Encode (全部)",
+                    t_url_enc_uri: "URL Encode (保留網址)", t_hash: "雜湊產生器 (Hash)", t_b64_dec: "Base64 Decode",
+                    t_b64_enc: "Base64 Encode", t_b32_dec: "Base32 Decode", t_b32_enc: "Base32 Encode",
+                    cron_locale: "zh_TW", mask_tip: "啟用後將自動隱藏以下 Header：<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (包含 mid 的所有 Key)</em>",
+                    msg_demo_loaded: "範例已載入", msg_demo_hint: "💡 已切換工具，點擊 '範例' 可查看用法",
+                    btn_swap: "設為輸入"
+                },
+                "en": {
+                    loading: "Loading DevBox...", badge_private: "Private", label_mask: "Mask Secrets",
+                    btn_run: "Run", btn_demo: "Demo", btn_clear: "Clear", btn_copy: "Copy", btn_copy_ok: "Copied!",
+                    title_input: "Input", title_output: "Output", status_offline: "Offline Mode", status_ready: "Ready",
+                    placeholder_input: "Paste your code here... (or click 'Demo')", placeholder_output: "Result will appear here... (Editable)",
+                    placeholder_jq: "Click fields below to generate path... (Ctrl/Cmd to multi-select)",
+                    err_format: "⚠️ Format Error", err_syntax: "⚠️ Syntax Error", err_decode: "⚠️ Decode Failed",
+                    opt_group_format: "Code Formatter", opt_group_convert: "Converters", opt_group_encode: "Encoders / Decoders",
+                    t_json: "JSON Formatter", t_sql: "SQL Formatter", t_xml: "XML Formatter", t_graphql: "GraphQL", t_mongo: "MongoDB Shell",
+                    t_html: "HTML", t_yaml: "YAML", t_css: "CSS", t_js: "JavaScript", t_curl: "cURL Formatter",
+                    t_jq: "JQ Generator", t_mongo_path: "MongoDB Path Generator", t_case: "Case Converter",
+                    t_json_yaml: "JSON <-> YAML", t_schema: "JSON to JSON Schema", t_time: "Timestamp Converter",
+                    t_cron: "Cron Expression", t_regex: "Regex Tester", t_url_dec: "URL Decode", t_url_enc: "URL Encode (Full)",
+                    t_url_enc_uri: "URL Encode (URI Safe)", t_hash: "Hash Generator", t_b64_dec: "Base64 Decode",
+                    t_b64_enc: "Base64 Encode", t_b32_dec: "Base32 Decode", t_b32_enc: "Base32 Encode",
+                    cron_locale: "en", mask_tip: "Auto-hides headers:<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (Any key containing mid)</em>",
+                    msg_demo_loaded: "Demo Loaded", msg_demo_hint: "💡 Tool switched. Click 'Demo' to see examples.",
+                    btn_swap: "Use as Input"
+                },
+                "ja": {
+                    loading: "DevBoxを読み込み中...", badge_private: "社内用", label_mask: "機密情報を隠す",
+                    btn_run: "実行", btn_demo: "デモ", btn_clear: "クリア", btn_copy: "コピー", btn_copy_ok: "完了",
+                    title_input: "入力", title_output: "結果", status_offline: "オフラインモード", status_ready: "準備完了",
+                    placeholder_input: "コードをここに貼り付け... (または 'デモ' をクリック)", placeholder_output: "結果はここに表示されます... (編集可能)",
+                    placeholder_jq: "フィールドをクリックしてパスを生成... (Ctrl/Cmdで複数選択)",
+                    err_format: "⚠️ フォーマットエラー", err_syntax: "⚠️ 構文エラー", err_decode: "⚠️ デコード失敗",
+                    opt_group_format: "コード整形", opt_group_convert: "変換ツール", opt_group_encode: "エンコード / デコード",
+                    t_json: "JSON 整形", t_sql: "SQL 整形", t_xml: "XML 整形", t_graphql: "GraphQL", t_mongo: "MongoDB Shell",
+                    t_html: "HTML", t_yaml: "YAML", t_css: "CSS", t_js: "JavaScript", t_curl: "cURL 整形",
+                    t_jq: "JQ ジェネレーター", t_mongo_path: "MongoDB パス生成", t_case: "変数名変換 (Case)",
+                    t_json_yaml: "JSON <-> YAML", t_schema: "JSON to JSON Schema", t_time: "Unix タイムスタンプ変換",
+                    t_cron: "Cron 式解析", t_regex: "正規表現テスター", t_url_dec: "URL デコード", t_url_enc: "URL エンコード (Full)",
+                    t_url_enc_uri: "URL エンコード (URI Safe)", t_hash: "ハッシュ生成 (Hash)", t_b64_dec: "Base64 デコード",
+                    t_b64_enc: "Base64 エンコード", t_b32_dec: "Base32 デコード", t_b32_enc: "Base32 エンコード",
+                    cron_locale: "ja", mask_tip: "以下のヘッダーを自動的に隠します：<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (midを含む全てのキー)</em>",
+                    msg_demo_loaded: "デモをロードしました", msg_demo_hint: "💡 ツールを変更しました。「デモ」をクリックして例を表示します。",
+                    btn_swap: "入力へ反映"
+                },
+                "ko": {
+                    loading: "DevBox 로딩 중...", badge_private: "내부용", label_mask: "민감 정보 숨기기",
+                    btn_run: "실행", btn_demo: "예제", btn_clear: "지우기", btn_copy: "복사", btn_copy_ok: "완료",
+                    title_input: "입력", title_output: "결과", status_offline: "오프라인 모드", status_ready: "준비됨",
+                    placeholder_input: "코드를 붙여넣으세요... (또는 '예제' 버튼 클릭)", placeholder_output: "결과가 여기에 표시됩니다... (수정 가능)",
+                    placeholder_jq: "필드를 클릭하여 경로 생성... (Ctrl/Cmd 다중 선택)",
+                    err_format: "⚠️ 형식 오류", err_syntax: "⚠️ 문법 오류", err_decode: "⚠️ 디코딩 실패",
+                    opt_group_format: "코드 포맷터", opt_group_convert: "변환 도구", opt_group_encode: "인코더 / 디코더",
+                    t_json: "JSON 포맷터", t_sql: "SQL 포맷터", t_xml: "XML 포맷터", t_graphql: "GraphQL", t_mongo: "MongoDB Shell",
+                    t_html: "HTML", t_yaml: "YAML", t_css: "CSS", t_js: "JavaScript", t_curl: "cURL 포맷터",
+                    t_jq: "JQ 생성기", t_mongo_path: "MongoDB 경로 생성기", t_case: "변수명 변환 (Case)",
+                    t_json_yaml: "JSON <-> YAML", t_schema: "JSON to JSON Schema", t_time: "Unix 타임스탬프 변환",
+                    t_cron: "Cron 표현식 파서", t_regex: "정규식 테스터", t_url_dec: "URL 디코딩", t_url_enc: "URL 인코딩 (전체)",
+                    t_url_enc_uri: "URL 인코딩 (주소 유지)", t_hash: "해시 생성 (Hash)", t_b64_dec: "Base64 디코딩",
+                    t_b64_enc: "Base64 인코딩", t_b32_dec: "Base32 디코딩", t_b32_enc: "Base32 인코딩",
+                    cron_locale: "ko", mask_tip: "다음 헤더를 자동으로 숨깁니다:<br>Authorization<br>Cookie<br>X-API-Key<br>X-Auth-Token<br>private-token<br>x-auth-key<br>http-x-lh-user-info<br><em>*mid* (mid 포함 키)</em>",
+                    msg_demo_loaded: "예제가 로드됨", msg_demo_hint: "💡 도구가 변경되었습니다. '예제'를 클릭하여 사용법을 확인하세요.",
+                    btn_swap: "입력으로 사용"
                 }
-                const decoder = new TextDecoder();
-                return decoder.decode(output.slice(0, index));
             }
         };
 
-        function basicXmlFormatter(xml) {
-            var formatted = '';
-            var reg = /(>)(<)(\/*)/g;
-            xml = xml.replace(reg, '$1\r\n$2$3');
-            var pad = 0;
-            var nodes = xml.split('\r\n');
-            for(var n in nodes) {
-                var node = nodes[n];
-                var indent = 0;
-                if (node.match(/.+<\/\w[^>]*>$/)) indent = 0;
-                else if (node.match(/^<\/\w/)) { if (pad != 0) pad -= 1; }
-                else if (node.match(/^<\w[^>]*[^\/]>.*$/)) indent = 1;
-                else indent = 0;
-                var padding = '';
-                for (var i = 0; i < pad; i++) padding += '  ';
-                formatted += padding + node + '\r\n';
-                pad += indent;
-            }
-            return formatted.trim();
-        }
-
-        // Custom Tokenizer for cURL arguments with Masking Support
-        function formatCurlCommand(cmd, maskSecrets) {
-            if (!cmd) return "";
-            // Remove newlines and backslashes
-            cmd = cmd.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
-            
-            // Regex to match args: quotes (double/single) or non-space
-            const regex = /(".*?"|'.*?'|-[^\s]+|--[^\s]+|[^\s]+)/g;
-            const tokens = cmd.match(regex) || [];
-            
-            let formatted = "";
-            const sensitiveKeys = [
-                'Authorization', 
-                'Cookie', 
-                'X-API-Key', 
-                'X-Auth-Token', 
-                'private-token',
-                'x-auth-key',
-                'http-x-lh-user-info'
-            ];
-            
-            tokens.forEach((token, index) => {
-                
-                // Masking Logic
-                if (maskSecrets) {
-                    // Check if token looks like header 'Key: Value'
-                    // Remove outer quotes to check content (e.g., 'Authorization: ...')
-                    let cleanToken = token.replace(/^['"]|['"]$/g, '');
-                    
-                    if (cleanToken.includes(':')) {
-                        const parts = cleanToken.split(':');
-                        const key = parts[0].trim();
-                        
-                        // Check exact list OR matches "mid" (case-insensitive)
-                        // This handles 'a-mid', 'MID', 'X-Merchant-Mid', etc.
-                        let isSensitive = sensitiveKeys.some(k => k.toLowerCase() === key.toLowerCase()) || 
-                                          key.toLowerCase().includes('mid');
-
-                        if (isSensitive) {
-                            // Reconstruct token with masked value, preserving original quotes
-                            const firstChar = token[0];
-                            const quote = (firstChar === '"' || firstChar === "'") ? firstChar : "'";
-                            token = `${quote}${key}: ********${quote}`;
+        /* ================= UTILS ================= */
+        const Utils = {
+            debounce: (func, wait) => {
+                let timeout;
+                return function(...args) {
+                    const context = this;
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(context, args), wait);
+                };
+            },
+            basicXmlFormatter: (xml) => {
+                var formatted = '';
+                var reg = /(>)(<)(\/*)/g;
+                xml = xml.replace(reg, '$1\r\n$2$3');
+                var pad = 0;
+                var nodes = xml.split('\r\n');
+                for(var n in nodes) {
+                    var node = nodes[n];
+                    var indent = 0;
+                    if (node.match(/.+<\/\w[^>]*>$/)) indent = 0;
+                    else if (node.match(/^<\/\w/)) { if (pad != 0) pad -= 1; }
+                    else if (node.match(/^<\w[^>]*[^\/]>.*$/)) indent = 1;
+                    else indent = 0;
+                    var padding = '';
+                    for (var i = 0; i < pad; i++) padding += '  ';
+                    formatted += padding + node + '\r\n';
+                    pad += indent;
+                }
+                return formatted.trim();
+            },
+            Base32: {
+                alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',
+                encode: function(input) {
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(input);
+                    let output = '';
+                    let val = 0, bits = 0;
+                    for (let i = 0; i < data.length; i++) {
+                        val = (val << 8) | data[i];
+                        bits += 8;
+                        while (bits >= 5) {
+                            output += this.alphabet[(val >>> (bits - 5)) & 31];
+                            bits -= 5;
                         }
                     }
-                }
-
-                if (index === 0) {
-                    formatted += token; // 'curl'
-                    return;
-                }
-                // If token starts with - or --, force newline
-                if (token.startsWith("-")) {
-                    formatted += " \\\n  " + token;
-                } else {
-                    formatted += " " + token;
-                }
-            });
-            return formatted;
-        }
-
-        // JSON to JSON Schema Generator
-        function jsonToSchema(json) {
-            function getType(value) {
-                if (value === null) return 'null';
-                if (Array.isArray(value)) return 'array';
-                return typeof value;
-            }
-
-            function traverse(data) {
-                const type = getType(data);
-                const schema = { type };
-
-                if (type === 'object') {
-                    schema.properties = {};
-                    for (const key in data) {
-                        schema.properties[key] = traverse(data[key]);
+                    if (bits > 0) output += this.alphabet[(val << (5 - bits)) & 31];
+                    while (output.length % 8 !== 0) output += '=';
+                    return output;
+                },
+                decode: function(input) {
+                    input = input.replace(/=+$/, '');
+                    let output = new Uint8Array(input.length * 5 / 8 | 0);
+                    let val = 0, bits = 0, index = 0;
+                    for (let i = 0; i < input.length; i++) {
+                        let c = this.alphabet.indexOf(input[i].toUpperCase());
+                        if (c === -1) continue; 
+                        val = (val << 5) | c;
+                        bits += 5;
+                        if (bits >= 8) {
+                            output[index++] = (val >>> (bits - 8)) & 255;
+                            bits -= 8;
+                        }
                     }
-                } else if (type === 'array') {
-                    if (data.length > 0) {
-                        // Infer schema from the first item
-                        schema.items = traverse(data[0]);
-                    } else {
-                        schema.items = {}; // Empty array, unknown items
-                    }
+                    const decoder = new TextDecoder();
+                    return decoder.decode(output.slice(0, index));
                 }
-                return schema;
             }
-
-            return {
-                "$schema": "http://json-schema.org/draft-07/schema#",
-                ...traverse(json)
-            };
-        }
-
-        // ==========================================
-        // Main Logic (Refactored)
-        // ==========================================
-
-        // Define Demo Data Map
-        const demoData = {
-            'json': '{"squadName":"Super Hero Squad","homeTown":"Metro City","active":true,"members":[{"name":"Molecule Man","age":29,"powers":["Radiation resistance","Turning tiny"]}]}',
-            'sql': "SELECT p.product_name, SUM(o.quantity) as total FROM products p JOIN orders o ON p.id = o.pid WHERE p.active = 1 GROUP BY p.id ORDER BY total DESC;",
-            'xml': '<?xml version="1.0"?><note><to>User</to><from>Admin</from><body>Reminder!</body></note>',
-            'html': '<!DOCTYPE html><html><head><title>Test</title></head><body><div class="main"><h1>Hello</h1></div></body></html>',
-            'css': 'body{background:#000;color:#fff}.card{border:1px solid #ccc;padding:10px}',
-            'yaml': 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: nginx\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.14.2',
-            'javascript': 'const fn=(a,b)=>{if(a>b)return a;else return b;};console.log(fn(5,10));',
-            'curl': `curl 'https://api.example.com/data' -H 'Authority: api.example.com' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy.token' -H 'Cookie: session_id=abc123456' -H 'Content-Type: application/json' -H 'x-auth-key: secret_key_123' -H 'a-mid: merchant_777' -H 'http-x-lh-user-info: user_data_blob' --data-raw '{"id":123,"value":"test"}' --compressed`,
-            'json-to-schema': '{"id": 1, "name": "Test Product", "price": 12.50, "tags": ["home", "green"], "stock": {"warehouse": "A", "quantity": 100}}',
-            'url-decode': 'https://example.com/?q=%E6%B8%AC%E8%A9%A6&key=%E5%80%BC',
-            'url-encode': 'https://example.com/?q=測試&key=值',
-            'url-encode-uri': 'https://example.com/?q=測試&key=值',
-            'base64-encode': '中文測試 123',
-            'base64-decode': '5Lit5paH5ris6KmmIDEyMw==',
-            'base32-encode': 'test base32',
-            'base32-decode': 'ORSXG5BAMJQXEZQ='
         };
 
-        let lastLoadedDemo = ""; // Track the last demo text loaded
-
-        function toggleMaskOption(lang) {
-            if (lang === 'curl') {
-                maskOption.classList.remove('d-none');
-            } else {
-                maskOption.classList.add('d-none');
-            }
-        }
-
-        function loadDemo() {
-            const lang = langSelect.value;
-            // Get text from map, default to empty
-            let demoText = demoData[lang] || "";
-            
-            inputEl.value = demoText;
-            lastLoadedDemo = demoText; // Update tracking
-            
-            formatCode(); 
-            // Visual feedback
-            const btn = document.querySelector('.btn-outline-primary');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-check"></i>';
-            setTimeout(() => btn.innerHTML = originalHTML, 1000);
-        }
-
-        function formatCode() {
-            const source = inputEl.value;
-            const lang = langSelect.value;
-            if (!source.trim()) { outputEl.value = ""; return; }
-
-            errorMsg.style.display = 'none';
-            offlineWarning.style.display = 'none';
-            
-            try {
+        /* ================= PROCESSORS ================= */
+        const Processors = {
+            'json': (s) => prettier.format(s, { parser: "json", plugins: Object.values(window.prettierPlugins), printWidth: 60 }),
+            'javascript': (s) => prettier.format(s, { parser: "babel", plugins: Object.values(window.prettierPlugins), semi: true, singleQuote: true }),
+            'mongodb': (s) => prettier.format(s, { parser: "babel", plugins: Object.values(window.prettierPlugins), semi: true, singleQuote: true }),
+            'graphql': (s) => prettier.format(s, { parser: "graphql", plugins: Object.values(window.prettierPlugins) }),
+            'html': (s) => prettier.format(s, { parser: "html", plugins: Object.values(window.prettierPlugins), printWidth: 100 }),
+            'css': (s) => prettier.format(s, { parser: "css", plugins: Object.values(window.prettierPlugins) }),
+            'yaml': (s) => prettier.format(s, { parser: "yaml", plugins: Object.values(window.prettierPlugins) }),
+            'sql': (s) => sqlFormatter.format(s, { language: 'sql', indent: '  ', uppercase: true }),
+            'xml': (s) => {
+                let formatter = (typeof window.xmlFormatter === 'function') ? window.xmlFormatter : (window.xmlFormatter?.default);
+                if (formatter) return formatter(s, { indentation: '  ', collapseContent: true, lineSeparator: '\n' });
+                return Utils.basicXmlFormatter(s);
+            },
+            'curl': (s, mask) => {
+                if (!s) return "";
+                s = s.replace(/\\\s*\n/g, " ").replace(/\s+/g, " ").trim();
+                const regex = /(".*?"|'.*?'|-[^\s]+|--[^\s]+|[^\s]+)/g;
+                const tokens = s.match(regex) || [];
                 let formatted = "";
-                switch (lang) {
-                    case 'json': formatted = prettier.format(source, { parser: "json", plugins: prettierPlugins, printWidth: 60 }); break;
-                    case 'json-to-schema': 
-                        const jsonObj = JSON.parse(source);
-                        const schemaObj = jsonToSchema(jsonObj);
-                        formatted = prettier.format(JSON.stringify(schemaObj), { parser: "json", plugins: prettierPlugins, printWidth: 60 });
-                        break;
-                    case 'javascript': formatted = prettier.format(source, { parser: "babel", plugins: prettierPlugins, semi: true, singleQuote: true }); break;
-                    case 'html': formatted = prettier.format(source, { parser: "html", plugins: prettierPlugins, printWidth: 100 }); break;
-                    case 'css': formatted = prettier.format(source, { parser: "css", plugins: prettierPlugins }); break;
-                    case 'yaml': formatted = prettier.format(source, { parser: "yaml", plugins: prettierPlugins }); break;
-                    case 'sql': formatted = sqlFormatter.format(source, { language: 'sql', indent: '  ', uppercase: true }); break;
-                    case 'xml':
-                        let formatter = (typeof window.xmlFormatter === 'function') ? window.xmlFormatter : (window.xmlFormatter?.default);
-                        if (formatter) formatted = formatter(source, { indentation: '  ', collapseContent: true, lineSeparator: '\n' });
-                        else { offlineWarning.style.display = 'inline-block'; formatted = basicXmlFormatter(source); }
-                        break;
-                    case 'curl': 
-                        formatted = formatCurlCommand(source, maskCheckbox.checked); 
-                        break;
-                    case 'url-decode':
-                        formatted = decodeURIComponent(source);
-                        if (formatted.includes('&') && formatted.includes('=')) try { formatted = formatted.replace(/&/g, '\n&').replace(/\?/g, '\n?'); } catch (e) {}
-                        break;
-                    case 'url-encode': formatted = encodeURIComponent(source); break;
-                    case 'url-encode-uri': formatted = encodeURI(source); break;
-                    case 'base64-encode': formatted = btoa(unescape(encodeURIComponent(source))); break;
-                    case 'base64-decode': formatted = decodeURIComponent(escape(atob(source.trim()))); break;
-                    case 'base32-encode': formatted = Base32.encode(source); break;
-                    case 'base32-decode': formatted = Base32.decode(source.trim()); break;
+                const sensitiveKeys = ['Authorization', 'Cookie', 'X-API-Key', 'X-Auth-Token', 'private-token', 'x-auth-key', 'http-x-lh-user-info'];
+                tokens.forEach((token, index) => {
+                    if (mask) {
+                        let cleanToken = token.replace(/^['"]|['"]$/g, '');
+                        if (cleanToken.includes(':')) {
+                            const parts = cleanToken.split(':');
+                            const key = parts[0].trim();
+                            let isSensitive = sensitiveKeys.some(k => k.toLowerCase() === key.toLowerCase()) || key.toLowerCase().includes('mid');
+                            if (isSensitive) {
+                                const firstChar = token[0];
+                                const quote = (firstChar === '"' || firstChar === "'") ? firstChar : "'";
+                                token = `${quote}${key}: ********${quote}`;
+                            }
+                        }
+                    }
+                    if (index === 0) formatted += token; 
+                    else if (token.startsWith("-")) formatted += " \\\n  " + token;
+                    else formatted += " " + token;
+                });
+                return formatted;
+            },
+            'case-converter': (s) => {
+                if (!s) return "";
+                const cleanInput = s.trim();
+                const words = cleanInput.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                if (words.length === 0) return "";
+                const camel = words.map((w, i) => i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)).join('');
+                const pascal = words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+                const snake = words.join('_');
+                const kebab = words.join('-');
+                const constant = words.join('_').toUpperCase();
+                const sentence = words.join(' ').charAt(0).toUpperCase() + words.join(' ').slice(1);
+                return `Input: ${s}\n\nCamel Case:    ${camel}\nPascal Case:   ${pascal}\nSnake Case:    ${snake}\nKebab Case:    ${kebab}\nConstant Case: ${constant}\nSentence Case: ${sentence}`;
+            },
+            'json-yaml': (s) => {
+                const trimmed = s.trim();
+                try {
+                    const obj = JSON.parse(trimmed);
+                    if(typeof jsyaml !== 'undefined') return jsyaml.dump(obj);
+                    throw new Error("JS-YAML Lib missing");
+                } catch (eJson) {
+                    try {
+                        if(typeof jsyaml !== 'undefined') {
+                            const obj = jsyaml.load(trimmed);
+                            return JSON.stringify(obj, null, 2);
+                        } throw new Error("JS-YAML Lib missing");
+                    } catch (eYaml) {
+                        throw new Error("Invalid JSON or YAML");
+                    }
                 }
-                outputEl.value = formatted;
-            } catch (err) {
-                console.error(err);
-                errorMsg.style.display = 'inline-block';
-                errorMsg.title = err.message;
-                errorMsg.innerText = (lang.includes('decode')) ? "⚠️ 解碼失敗" : "⚠️ 語法錯誤";
+            },
+            'json-to-schema': (s) => {
+                function getType(v) { if (v === null) return 'null'; if (Array.isArray(v)) return 'array'; return typeof v; }
+                function traverse(data) {
+                    const type = getType(data);
+                    const schema = { type };
+                    if (type === 'object') {
+                        schema.properties = {};
+                        for (const key in data) schema.properties[key] = traverse(data[key]);
+                    } else if (type === 'array') {
+                        if (data.length > 0) schema.items = traverse(data[0]);
+                        else schema.items = {}; 
+                    }
+                    return schema;
+                }
+                const jsonObj = JSON.parse(s);
+                const schemaObj = { "$schema": "http://json-schema.org/draft-07/schema#", ...traverse(jsonObj) };
+                return prettier.format(JSON.stringify(schemaObj), { parser: "json", plugins: Object.values(window.prettierPlugins), printWidth: 60 });
+            },
+            'timestamp-converter': (s) => {
+                let date;
+                let raw = s.trim();
+                if (!raw) date = new Date(); 
+                else if (/^-?\d+$/.test(raw)) { 
+                    if (Math.abs(parseInt(raw)) < 100000000000) date = new Date(parseInt(raw) * 1000); 
+                    else date = new Date(parseInt(raw)); 
+                } else date = new Date(raw);
+                
+                if (isNaN(date.getTime())) throw new Error("Invalid Date");
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMin = Math.round(diffMs / 60000);
+                let relative = "";
+                if (Math.abs(diffMin) < 1) relative = "Just now";
+                else if (diffMin > 0) relative = `${diffMin} mins ago`;
+                else relative = `in ${Math.abs(diffMin)} mins`;
+                let formatted = `Local Time:      ${date.toLocaleString()}\n`;
+                formatted += `ISO 8601 (UTC):  ${date.toISOString()}\n`;
+                formatted += `Unix (Seconds):  ${Math.floor(date.getTime() / 1000)}\n`;
+                formatted += `Unix (Millis):   ${date.getTime()}\n`;
+                formatted += `Relative:        ${relative}`;
+                return formatted;
+            },
+            'hash-generator': async (s) => {
+                if (!s) return "";
+                const encoder = new TextEncoder();
+                const data = encoder.encode(s);
+                const algos = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
+                let result = "";
+                for (let algo of algos) {
+                    const hashBuffer = await crypto.subtle.digest(algo, data);
+                    const hashArray = Array.from(new Uint8Array(hashBuffer));
+                    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                    result += `${algo}:\n${hashHex}\n\n`;
+                }
+                return result.trim();
+            },
+            'cron-parser': (s, locale) => {
+                let cronExp = s.trim();
+                const lowerSource = cronExp.toLowerCase();
+                if (AppConfig.cronKeywords[lowerSource]) {
+                    cronExp = AppConfig.cronKeywords[lowerSource];
+                }
+                let output = "";
+                let validCron = false;
+                if (typeof cronstrue !== 'undefined') {
+                    try {
+                        const loc = locale || 'en';
+                        const desc = cronstrue.toString(cronExp, { locale: loc });
+                        output += `Description:\n${desc}\n\n`;
+                        validCron = true;
+                    } catch(e) {}
+                }
+                if (typeof cronParser !== 'undefined' && validCron) {
+                    try {
+                        const interval = cronParser.parseExpression(cronExp);
+                        output += `Next 5 Runs:\n`;
+                        for (let i = 0; i < 5; i++) output += `${i+1}. ${interval.next().toString()}\n`;
+                    } catch (e) {}
+                }
+                if (!validCron) {
+                    output = `⚠️ Invalid Cron Expression.\n\nExamples:\n* * * * * (Every Minute)\n*/5 * * * * (Every 5 Min)\n0 0 1 * * (Monthly)`;
+                }
+                return output;
+            },
+            'regex-tester': (s) => {
+                const lines = s.split('\n');
+                if (lines.length < 2) return "RegEx: /pattern/flags\nText: ...";
+                let regexStr = lines[0].trim();
+                const textToTest = s.substring(s.indexOf('\n') + 1);
+                let pattern = regexStr;
+                let flags = "";
+                if (regexStr.startsWith('/') && regexStr.lastIndexOf('/') > 0) {
+                    const lastSlash = regexStr.lastIndexOf('/');
+                    pattern = regexStr.substring(1, lastSlash);
+                    flags = regexStr.substring(lastSlash + 1);
+                }
+                try {
+                    const regex = new RegExp(pattern, flags || 'g');
+                    let output = `Pattern: /${pattern}/${flags}\n\n`;
+                    const matches = [...textToTest.matchAll(regex)];
+                    if (matches.length === 0) return output + "No matches found.";
+                    output += `Found ${matches.length} matches:\n\n`;
+                    matches.forEach((m, i) => {
+                        output += `Match ${i + 1}: "${m[0]}" (Index: ${m.index})\n`;
+                        if (m.length > 1) {
+                            m.slice(1).forEach((group, gIndex) => {
+                                output += `  Group ${gIndex + 1}: "${group}"\n`;
+                            });
+                        }
+                        output += "\n";
+                    });
+                    return output.trim();
+                } catch (e) {
+                    return `Regex Error: ${e.message}`;
+                }
+            },
+            'url-decode': (s) => {
+                let f = decodeURIComponent(s);
+                if (f.includes('&') && f.includes('=')) try { f = f.replace(/&/g, '\n&').replace(/\?/g, '\n?'); } catch (e) {}
+                return f;
+            },
+            'url-encode': (s) => encodeURIComponent(s),
+            'url-encode-uri': (s) => encodeURI(s),
+            'base64-encode': (s) => btoa(unescape(encodeURIComponent(s))),
+            'base64-decode': (s) => decodeURIComponent(escape(atob(s.trim()))),
+            'base32-encode': (s) => Utils.Base32.encode(s),
+            'base32-decode': (s) => Utils.Base32.decode(s.trim())
+        };
+
+        /* ================= UI MANAGER ================= */
+        const UIManager = {
+            elements: {
+                input: document.getElementById('input-code'),
+                output: document.getElementById('output-code'),
+                langSelect: document.getElementById('language-select'),
+                langSwitcher: document.getElementById('lang-switcher'),
+                errorMsg: document.getElementById('error-msg'),
+                jqWrapper: document.getElementById('jq-tree-wrapper'),
+                jqView: document.getElementById('jq-tree-view'),
+                jqOut: document.getElementById('jq-result-output'),
+                jqBadge: document.getElementById('jq-result-badge'),
+                maskOption: document.getElementById('mask-option'),
+                maskCheckbox: document.getElementById('maskSecrets'),
+                maskTooltip: document.getElementById('mask-tooltip'),
+                themeIcon: document.getElementById('theme-icon'),
+                loadingOverlay: document.getElementById('loading-overlay'),
+                toastContainer: document.getElementById('toast-container')
+            },
+            state: {
+                currentLang: 'zh-TW',
+                lastLoadedDemoContent: "",
+                selectedJqPaths: [],
+                bsMaskTooltip: null
+            },
+            init() {
+                // Theme
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'light') {
+                    document.body.classList.add('light-mode');
+                    this.updateThemeIcon(true);
+                }
+                
+                // Lang
+                const browserLang = navigator.language || navigator.userLanguage; 
+                if (browserLang.includes('en')) this.state.currentLang = 'en';
+                else if (browserLang.includes('ja')) this.state.currentLang = 'ja';
+                else if (browserLang.includes('ko')) this.state.currentLang = 'ko';
+                this.elements.langSwitcher.value = this.state.currentLang;
+                
+                this.updateInterfaceLanguage();
+                
+                // Overlay
+                this.elements.loadingOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    this.elements.loadingOverlay.style.display = 'none';
+                    App.loadDemo(true); 
+                }, 500);
+            },
+            updateInterfaceLanguage() {
+                const t = AppConfig.translations[this.state.currentLang];
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    if (t[key]) el.innerText = t[key];
+                });
+                
+                this.elements.input.placeholder = t.placeholder_input;
+                this.elements.output.placeholder = t.placeholder_output;
+                this.elements.jqOut.placeholder = t.placeholder_jq;
+                
+                const currentVal = this.elements.langSelect.value;
+                this.elements.langSelect.innerHTML = '';
+                
+                AppConfig.toolOptions.forEach(group => {
+                    const optGroup = document.createElement('optgroup');
+                    optGroup.label = t[group.group];
+                    group.items.forEach(item => {
+                        const opt = document.createElement('option');
+                        opt.value = item.val;
+                        opt.innerText = t[item.k];
+                        optGroup.appendChild(opt);
+                    });
+                    this.elements.langSelect.appendChild(optGroup);
+                });
+                this.elements.langSelect.value = currentVal || 'json';
+
+                if (this.state.bsMaskTooltip) this.state.bsMaskTooltip.dispose();
+                this.elements.maskTooltip.setAttribute('data-bs-original-title', t.mask_tip);
+                this.state.bsMaskTooltip = new bootstrap.Tooltip(this.elements.maskTooltip);
+            },
+            toggleTheme() {
+                const isLight = document.body.classList.toggle('light-mode');
+                localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                this.updateThemeIcon(isLight);
+            },
+            updateThemeIcon(isLight) {
+                this.elements.themeIcon.className = isLight ? 'bi bi-sun-fill' : 'bi bi-moon-stars-fill';
+            },
+            toggleViewComponents(lang) {
+                // JQ View
+                if (lang === 'jq-generator' || lang === 'mongodb-path-generator') {
+                    this.elements.output.classList.add('d-none');
+                    this.elements.jqWrapper.classList.remove('d-none');
+                    this.elements.jqBadge.innerText = (lang === 'jq-generator') ? "JQ Path" : "Mongo Path";
+                } else {
+                    this.elements.output.classList.remove('d-none');
+                    this.elements.jqWrapper.classList.add('d-none');
+                }
+                // Mask Option
+                if (lang === 'curl') this.elements.maskOption.classList.remove('d-none');
+                else this.elements.maskOption.classList.add('d-none');
+            },
+            showToast(message, type = 'info') {
+                const toastId = 'toast-' + Date.now();
+                const colorClass = type === 'success' ? 'text-success' : (type === 'error' ? 'text-danger' : 'text-primary');
+                const html = `
+                    <div id="${toastId}" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body ${colorClass}">
+                                ${message}
+                            </div>
+                            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                `;
+                this.elements.toastContainer.insertAdjacentHTML('beforeend', html);
+                const toastEl = document.getElementById(toastId);
+                const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+                toast.show();
+                toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+            },
+            renderTree(data, path = '') {
+                const type = data === null ? 'null' : Array.isArray(data) ? 'array' : typeof data;
+                if (type === 'object') {
+                    let html = '<ul>';
+                    for (const key in data) {
+                        const safeKey = /^[a-zA-Z0-9_]+$/.test(key) ? `.${key}` : `."${key}"`;
+                        const currentPath = path + safeKey;
+                        html += `<li><span class="json-key" data-path="${currentPath}" onclick="App.handleTreeClick(event, '${currentPath}')">"${key}"</span>: ${this.renderTree(data[key], currentPath)}</li>`;
+                    }
+                    html += '</ul>';
+                    return `<span class="json-bracket">{</span>${html}<span class="json-bracket">}</span>`;
+                } else if (type === 'array') {
+                    let html = '<ul>';
+                    data.forEach((item, index) => {
+                        const currentPath = `${path}[${index}]`;
+                        html += `<li><span class="json-bracket" style="cursor:pointer" onclick="App.handleTreeClick(event, '${currentPath}')">[${index}]</span>: ${this.renderTree(item, currentPath)}</li>`;
+                    });
+                    html += '</ul>';
+                    return `<span class="json-bracket">[</span>${html}<span class="json-bracket">]</span>`;
+                } else {
+                    let displayValue = JSON.stringify(data);
+                    return `<span class="json-${type}">${displayValue}</span>`;
+                }
             }
-        }
+        };
 
-        function copyResult() {
-            if (!outputEl.value) return;
-            outputEl.select();
-            document.execCommand('copy');
-            const btn = document.getElementById('btn-copy');
-            const originalHTML = btn.innerHTML;
-            btn.className = 'btn btn-light btn-sm py-0 fw-bold';
-            btn.innerHTML = '<i class="bi bi-check-lg text-success"></i> OK';
-            setTimeout(() => {
-                btn.className = 'btn btn-success btn-sm py-0';
-                btn.innerHTML = originalHTML;
-            }, 1000);
-        }
-
-        function clearAll() {
-            inputEl.value = ''; outputEl.value = '';
-            errorMsg.style.display = 'none'; offlineWarning.style.display = 'none';
-            inputEl.focus();
-        }
-
-        langSelect.addEventListener('change', () => { 
-            toggleMaskOption(langSelect.value);
+        /* ================= APP LOGIC ================= */
+        const App = {
+            init() {
+                UIManager.init();
+                
+                // Event Listeners
+                UIManager.elements.input.addEventListener('input', Utils.debounce(() => this.runFormat(), 300));
+                UIManager.elements.maskCheckbox.addEventListener('change', () => this.runFormat());
+                UIManager.elements.langSwitcher.addEventListener('change', (e) => {
+                    UIManager.state.currentLang = e.target.value;
+                    UIManager.updateInterfaceLanguage();
+                    this.checkAndLoadDemo();
+                });
+                UIManager.elements.langSelect.addEventListener('change', () => {
+                    this.handleToolChange();
+                });
+                
+                document.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') this.runFormat();
+                });
+            },
             
-            const currentInput = inputEl.value;
-            // Check if input is empty OR equals the last loaded demo (meaning unmodified)
-            if(!currentInput.trim() || currentInput === lastLoadedDemo) {
-                loadDemo(); 
-            } else {
-                formatCode();
+            handleToolChange() {
+                const lang = UIManager.elements.langSelect.value;
+                UIManager.toggleViewComponents(lang);
+                
+                const currentInput = UIManager.elements.input.value;
+                
+                // SMART SWITCH: 
+                // If input is empty OR input matches the last auto-loaded demo -> load new demo
+                if (!currentInput.trim() || currentInput === UIManager.state.lastLoadedDemoContent) {
+                    this.loadDemo(true); // forceRun=true to show formatted result immediately
+                } else {
+                    // User has modified input, don't overwrite.
+                    // Show Tip Toast
+                    const t = AppConfig.translations[UIManager.state.currentLang];
+                    UIManager.showToast(t.msg_demo_hint, 'info');
+                    // Just re-run format with current input for new tool
+                    this.runFormat();
+                }
+            },
+
+            checkAndLoadDemo() {
+                // Used when lang switches, if content is untouched, update demo text to new lang
+                if (UIManager.elements.input.value.trim() === UIManager.state.lastLoadedDemoContent) {
+                    this.loadDemo(false);
+                } else {
+                    this.runFormat();
+                }
+            },
+
+            loadDemo(forceRun = true) {
+                const lang = UIManager.elements.langSelect.value;
+                let demoText = AppConfig.demos[lang];
+                
+                // I18n Demo adjustments
+                if (lang === 'base64-encode' && UIManager.state.currentLang !== 'zh-TW') {
+                    demoText = "Testing 123";
+                }
+
+                if (lang === 'timestamp-converter' && !demoText) {
+                    UIManager.elements.input.value = ""; 
+                    UIManager.state.lastLoadedDemoContent = "";
+                } else {
+                    if (demoText === undefined) demoText = "";
+                    UIManager.elements.input.value = demoText;
+                    UIManager.state.lastLoadedDemoContent = demoText; 
+                }
+                
+                if (forceRun) {
+                    this.runFormat();
+                    // Feedback on button
+                    const btn = document.querySelector('.btn-outline-primary');
+                    const t = AppConfig.translations[UIManager.state.currentLang];
+                    // FIX: Restore span with data-i18n so future language switches work
+                    btn.innerHTML = '<i class="bi bi-check"></i>';
+                    setTimeout(() => {
+                        btn.innerHTML = `<i class="bi bi-magic"></i> <span data-i18n="btn_demo">${t.btn_demo}</span>`;
+                    }, 1000);
+                }
+            },
+
+            async runFormat() {
+                const lang = UIManager.elements.langSelect.value;
+                const source = UIManager.elements.input.value;
+                const outputEl = UIManager.elements.output;
+                const errorMsg = UIManager.elements.errorMsg;
+                const t = AppConfig.translations[UIManager.state.currentLang];
+
+                errorMsg.style.display = 'none';
+                
+                // JQ Mode special handling
+                if (lang === 'jq-generator' || lang === 'mongodb-path-generator') {
+                    if (!source.trim()) {
+                        UIManager.elements.jqView.innerHTML = '';
+                        return;
+                    }
+                    try {
+                        const data = JSON.parse(source);
+                        UIManager.state.selectedJqPaths = [];
+                        UIManager.elements.jqOut.value = '';
+                        UIManager.elements.jqView.innerHTML = UIManager.renderTree(data, '');
+                    } catch(e) {
+                        UIManager.elements.jqView.innerHTML = `<div class="text-danger p-3">${t.err_syntax}: ${e.message}</div>`;
+                    }
+                    return;
+                }
+
+                // Standard Mode
+                if (!source.trim() && lang !== 'timestamp-converter') {
+                    outputEl.value = "";
+                    return;
+                }
+
+                try {
+                    let formatted = "";
+                    const processor = Processors[lang];
+                    
+                    if (processor) {
+                        // Handle Async vs Sync
+                        if (lang === 'hash-generator') {
+                            formatted = await processor(source);
+                        } else if (lang === 'curl') {
+                            formatted = processor(source, UIManager.elements.maskCheckbox.checked);
+                        } else if (lang === 'cron-parser') {
+                            // Needs extra arg for locale
+                            formatted = processor(source, t.cron_locale);
+                        } else {
+                            formatted = processor(source);
+                        }
+                    } else {
+                        formatted = source; // Fallback
+                    }
+                    
+                    outputEl.value = formatted;
+                } catch (err) {
+                    errorMsg.style.display = 'inline-block';
+                    errorMsg.innerText = (lang.includes('decode') || lang === 'timestamp-converter') ? t.err_format : t.err_syntax;
+                }
+            },
+
+            copyResult() {
+                const lang = UIManager.elements.langSelect.value;
+                let targetEl = UIManager.elements.output;
+                
+                if (lang === 'jq-generator' || lang === 'mongodb-path-generator') {
+                    targetEl = UIManager.elements.jqOut;
+                }
+
+                if (!targetEl.value) return;
+                
+                // Fallback copy
+                targetEl.select();
+                document.execCommand('copy');
+                
+                const t = AppConfig.translations[UIManager.state.currentLang];
+                UIManager.showToast(t.btn_copy_ok, 'success');
+            },
+
+            // New feature: Use Output As Input
+            useOutputAsInput() {
+                const lang = UIManager.elements.langSelect.value;
+                let valToCopy = "";
+
+                if (lang === 'jq-generator' || lang === 'mongodb-path-generator') {
+                    valToCopy = UIManager.elements.jqOut.value;
+                } else {
+                    valToCopy = UIManager.elements.output.value;
+                }
+
+                if (!valToCopy) return;
+
+                UIManager.elements.input.value = valToCopy;
+                // Important: Mark content as modified so it doesn't get wiped by demo switch
+                UIManager.state.lastLoadedDemoContent = null; 
+                
+                // Optional: Flash input to indicate change
+                UIManager.elements.input.focus();
+                UIManager.elements.input.style.transition = 'none';
+                UIManager.elements.input.style.backgroundColor = 'var(--accent-color)';
+                setTimeout(() => {
+                    UIManager.elements.input.style.transition = 'background-color 0.5s';
+                    UIManager.elements.input.style.backgroundColor = '';
+                }, 50);
+            },
+
+            clearAll() {
+                UIManager.elements.input.value = '';
+                UIManager.elements.output.value = '';
+                UIManager.elements.jqOut.value = '';
+                UIManager.elements.jqView.innerHTML = '';
+                UIManager.state.selectedJqPaths = [];
+                UIManager.elements.errorMsg.style.display = 'none';
+                UIManager.elements.input.focus();
+            },
+
+            handleTreeClick(event, path) {
+                event.stopPropagation(); 
+                const target = event.target;
+                const mode = UIManager.elements.langSelect.value;
+                let paths = UIManager.state.selectedJqPaths;
+                
+                if (event.ctrlKey || event.metaKey) {
+                    if (paths.includes(path)) {
+                        paths = paths.filter(p => p !== path);
+                        target.classList.remove('selected');
+                    } else {
+                        paths.push(path);
+                        target.classList.add('selected');
+                    }
+                } else {
+                    document.querySelectorAll('.json-key.selected, .json-bracket.selected').forEach(el => el.classList.remove('selected'));
+                    paths = [path];
+                    target.classList.add('selected');
+                }
+                UIManager.state.selectedJqPaths = paths;
+
+                // Generate Output
+                let outVal = "";
+                if (paths.length === 0) outVal = "";
+                else if (paths.length === 1) {
+                    outVal = (mode === 'mongodb-path-generator') ? this.toMongoPath(paths[0]) : paths[0];
+                } else {
+                    // Multi
+                    if (mode === 'mongodb-path-generator') {
+                        const parts = paths.map(p => `"${this.toMongoPath(p)}": 1`);
+                        outVal = `{ ${parts.join(', ')} }`;
+                    } else {
+                        const parts = paths.map(p => {
+                            const match = p.match(/\.([a-zA-Z0-9_]+)$/) || p.match(/\[(\d+)\]$/);
+                            let key = match ? match[1] : `field${Math.floor(Math.random()*100)}`;
+                            return `${key}: ${p}`;
+                        });
+                        outVal = `{ ${parts.join(', ')} }`;
+                    }
+                }
+                UIManager.elements.jqOut.value = outVal;
+                // Sync to output for copy logic fallback
+                UIManager.elements.output.value = outVal;
+            },
+
+            toMongoPath(jqPath) {
+                return jqPath.replace(/^\./, '').replace(/\[(\d+)\]/g, '.$1').replace(/\."([^"]+)"/g, '.$1');
             }
-        });
+        };
+
+        // Initialize
+        App.init();
 
     </script>
 </body>
